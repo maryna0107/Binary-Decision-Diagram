@@ -1,0 +1,362 @@
+             import java.util.*;
+
+             public class BddCreate {
+                 static String[] order = {"a","b", "c","d","e","f","g","h","i","j","k","l","m"};
+                 static String BFunction = "!cab+!ba+cf+de!g+h!ij+k!l!m";
+                 static List<String> notReduced = new ArrayList<>();
+                 public static class BDD {
+                     private static int nodesCounter = 3;
+                     private int size;
+                     private static BDDNode root;
+
+                     public BDD(int numVariables, int size, BDDNode root) {
+                         nodesCounter = numVariables;
+                         this.size = size;
+                         BDD.root = root;
+                     }
+                 }
+
+                     static class BDDNode {
+                         public static BDDNode one = new BDDNode("1", null, null);
+                         public static BDDNode zero = new BDDNode("0", null, null);
+                         private final String element;
+                         private final BDDNode low;
+                         private final BDDNode high;
+
+                         private static Map<String, BDDNode> hashTable = new HashMap<>();
+
+                         public BDDNode(String element, BDDNode high, BDDNode low) {
+                             this.element = element;
+                             this.high = high;
+                             this.low = low;
+                         }
+                     }
+
+                 public static String BDDUse(BDDNode bdd, char[] inputs) {
+                     if (bdd == null || inputs == null || inputs.length != order.length) {
+                         return "-1";
+                     }
+                     BDDNode current = bdd;
+                     for (int i = 0; i < inputs.length; i++) {
+                         char input = inputs[i];
+                         String orders = order[i];
+                         if (notReduced.contains(String.valueOf(orders)) && notReduced.indexOf(String.valueOf(orders)) == i) {
+                             continue;
+                         }
+                         if (input == '0') {
+                             if(current.low!=BDDNode.zero)
+                             {
+                                 current = current.low;
+                                 if(current == BDDNode.one) {
+                                     return "1";
+                                 }
+                             } else{
+                                 return "0";
+                             }
+                         } else if (input == '1') {/////////////////////////////////////////////////
+                             if(current.high!=BDDNode.one)
+                             {
+                                 current = current.high;
+                                 if(current == BDDNode.zero) {
+                                     return "0";
+                                 }
+                             } else{
+                                 return "1";
+                             }
+                         } else {
+                             return "-1";
+                         }
+                         if (current == null) {
+                             return "-1";
+                         }
+                     }
+                     return null;
+                 }
+
+
+                 public static BDDNode BDDCreate(String bFunction, String[] order) {
+                         int elements = order.length;
+                         Map<String, BDDNode> elemNodes = new IdentityHashMap<>();
+                         BDDNode.hashTable.clear(); // clear the hash table before each call to BDDCreate
+                         BDD.root = create(bFunction, order, elemNodes, elements + 1);
+                         return BDD.root;
+                     }
+
+                     public static BDDNode create(String bFunction, String[] order, Map<String, BDDNode> elemNodes, int i) {
+             //            List<String> notReduced = new ArrayList<>();
+                         if (bFunction.equals("0") || bFunction.equals("!1")) {
+                             return BDDNode.zero;
+                         } else if (bFunction.equals("1") || bFunction.equals("!0")) {
+                             return BDDNode.one;
+                         } else {
+                             String top = searchTop(bFunction, order);
+                             if (top == null) {
+                                 return null;
+                             }
+                             String key = Integer.toString((top + bFunction).hashCode()); // create a unique key for the node
+                             if (BDDNode.hashTable.containsKey(key)) { // check if the node has already been created
+             //                    System.err.println("i-Reduction " + key);
+                                 BDD.nodesCounter--;
+                                 return BDDNode.hashTable.get(key); // return the existing node
+                             }
+                             BDDNode lowNode, highNode;
+                             String bFunctionLow, bFunctionHigh;
+                             if (elemNodes.containsKey(top)) {
+                                 bFunctionLow = substitute(bFunction, top, "0");
+             //                    System.out.println(bFunctionLow + " " + top + " 0");
+                                 bFunctionLow = simplify(bFunctionLow);
+                                 if(!bFunctionLow.equals("0") && !bFunctionLow.equals("!1"))
+                                 {
+                                     BDD.nodesCounter ++;
+                                 }
+             //                    System.out.println(bFunctionLow + " " + top + " 0 simply");
+                                 lowNode = create(bFunctionLow, order, elemNodes, i + 1);
+
+
+                             } else {
+                                 bFunctionLow = substitute(bFunction, top, "0");
+             //                    System.out.println(bFunctionLow + " " + top + " 0"); // add if statement
+                                 bFunctionLow = simplify(bFunctionLow);
+                                 if(!bFunctionLow.equals("0") && !bFunctionLow.equals("!1"))
+                                 {
+                                     BDD.nodesCounter ++;
+                                 }
+             //                    System.out.println(bFunctionLow + " " + top + " 0 simply");
+                                 lowNode = create(bFunctionLow, order, elemNodes, i + 1);
+                                 elemNodes.put(top, lowNode);
+
+                             }
+                             if (elemNodes.containsKey(top)) {
+                                 bFunctionHigh = substitute(bFunction, top, "1");
+             //                    System.out.println(bFunctionHigh + " " + top + " 1");
+                                 bFunctionHigh = simplify(bFunctionHigh);
+                                 if(!bFunctionHigh.equals("1") && !bFunctionHigh.equals("!0"))
+                                 {
+                                     BDD.nodesCounter ++;
+                                 }
+             //                    System.out.println(bFunctionHigh + " " + top + " 1 simply");
+                                 highNode = create(bFunctionHigh, order, elemNodes, i + 1);
+                                 if(lowNode == highNode)
+                                 {
+             //                        System.err.println("s-Reduction " + lowNode);
+                                     BDD.nodesCounter--;
+                                     if (!notReduced.contains(top)) {
+                                         notReduced.add(top);
+                                     }
+                                     return lowNode;
+                                 }
+                             } else {
+                                 bFunctionHigh = substitute(bFunction, top, "1");
+             //                    System.out.println(bFunctionHigh + " " + top + " 1");
+
+                                 bFunctionHigh = simplify(bFunctionHigh);
+                                 if(!bFunctionHigh.equals("1") && !bFunctionHigh.equals("!0"))
+                                 {
+                                     BDD.nodesCounter ++;
+                                 }
+             //                    System.out.println(bFunctionHigh + " " + top + " 1 simply");
+                                 highNode = create(bFunctionHigh, order, elemNodes, i + 1);
+                                 elemNodes.put(top, highNode);
+                                 if(lowNode == highNode)
+                                 {
+                                     BDD.nodesCounter--;
+                                     if (!notReduced.contains(top)) {
+                                         notReduced.add(top);
+                                     }
+             //                        System.err.println("s-Reduction " + lowNode);
+                                     return lowNode;
+                                 }
+                             }
+                             BDDNode topNode = new BDDNode(top, highNode, lowNode);
+                             elemNodes.put(top, topNode);
+                             BDDNode.hashTable.put(key, topNode); // store the new node in the hash table
+             //                BDD.countNodes.incrementAndGet();
+             //                System.out.println("increment");
+                             return topNode;
+                         }
+                     }
+
+
+
+                     private static String searchTop(String bFunction, String[] order) {
+                         for (String element : order) {
+                             if (bFunction.contains(element) || bFunction.contains("!" + element)) {
+             //                    System.out.println("Returned " + element);
+                                 return element;
+                             }
+                         }
+                         return null;
+                     }
+
+                     private static String substitute(String bFunction, String element, String value) {
+                         String newFunction = bFunction.replace(element, value);
+                         newFunction = newFunction.replace("!" + element, value.equals("0") ? "1" : "0");
+                         return newFunction;
+                     }
+
+                     public static String simplify(String bFunction) {
+                         String[] elements = bFunction.split("\\+");
+
+                         for (int i = 0; i < elements.length; i++) {
+                             String element = elements[i];
+                             if (i < elements.length - 1) {
+                                 String nextElement = elements[i + 1];
+                                 if (element.equals(nextElement)) {
+                                     elements[i] = element.replaceAll("\\d", "");
+                                     elements[i + 1] = "";
+                                 }
+                                 if (i > 0 && element.equals(elements[i - 1])) {
+                                     elements[i] = "";
+                                 }
+                                 if (element.equals(nextElement + "'") || element.equals("'" + nextElement)) {
+                                     elements[i] = "1";
+                                     elements[i + 1] = "";
+                                 }
+                             }
+                         if(element.contains("!" + element))
+                         {
+                             elements[i] = "";
+                         }
+                             if (element.contains("!0") && !element.equals("!0")) {//delete
+                                 elements[i] = element.replace("!0", "");
+                             }
+                             if ((element.contains("0") || element.contains("!1")) && !element.equals("!1") && !element.equals("!0")) {
+                                 elements[i] = "";
+                                 if(element.contains("!0"))
+                                 {
+                                     elements[i] = element.replace("!0", "");
+                                 }
+                             }
+                             if (element.equals("1") || element.equals("!0")) {
+                                 return "1";
+                             }
+                             if(element.contains("0!0") || element.contains("1!1") || element.contains("!00") || element.contains("!11"))
+                             {
+                                 elements[i] = "";
+                             }
+                             if (element.contains("1") && !element.contains("!1")) {
+                                 elements[i] = element.replace("1", "");
+                             }
+                             if(element.equals("!1"))
+                             {
+                                 elements[i] = "";
+                             }
+                             if(element.contains("a!a") || element.contains("b!b") || element.contains("c!c") || element.contains("d!d") || element.contains("e!e") || element.contains("f!f") || element.contains("g!g") || element.contains("h!h") || element.contains("i!i") || element.contains("j!j") || element.contains("k!k") || element.contains("l!l") || element.contains("m!m") || element.contains("!aa") || element.contains("!bb") || element.contains("!cc") || element.contains("!dd") || element.contains("!ee") || element.contains("!ff") || element.contains("!gg") || element.contains("!hh") || element.contains("!ii") || element.contains("!jj") || element.contains("!kk") || element.contains("!ll") || element.contains("!mm") )
+                             {
+                                 elements[i] = "";
+                             }
+                             if (Arrays.stream(elements).allMatch(e -> e.equals("0")) || Arrays.stream(elements).allMatch(e -> e.equals("!1"))) {
+                                 return "0";
+                             }
+                             if (Arrays.stream(elements).allMatch(e -> e.equals("1")) || Arrays.stream(elements).allMatch(e -> e.equals("!0"))) {
+                                 return "1";
+                             }
+
+                         }
+
+                         String newBFunction = String.join("+", elements).replaceAll("\\++", "+");
+                         if (newBFunction.startsWith("+")) {
+                             newBFunction = newBFunction.substring(1);
+                         }
+                         if (newBFunction.endsWith("+")) {
+                             newBFunction = newBFunction.substring(0, newBFunction.length() - 1);
+                         }
+
+                         if (newBFunction.isEmpty()) {
+                             return "0";
+                         } else {
+
+                             return newBFunction;
+                         }
+                     }
+                 public static String[] permutation(String[] order) {
+                     String firstElement = order[0];
+                     for (int i = 1; i < order.length; i++) {
+                         order[i - 1] = order[i];
+                     }
+                     order[order.length - 1] = firstElement;
+             //        System.out.println(Arrays.toString(order)); // print the new order
+                     return order;
+                 }
+
+                 public static BDDNode bestOrder(String bFunction) {
+                     String[] currentOrder = Arrays.copyOf(order, order.length);
+                     BDDCreate(bFunction, currentOrder);
+                     permutation(currentOrder);
+                     int minNodes = BDD.nodesCounter;
+                     BDDNode bestBDD = BDD.root;
+
+                     while (!Arrays.equals(currentOrder, order)){
+                         BDD.nodesCounter = 3;
+                         BDDCreate(bFunction, currentOrder);
+                         permutation(currentOrder);
+                         int currentNodes = BDD.nodesCounter;
+
+                         if (currentNodes < minNodes) {
+                             minNodes = currentNodes;
+                             bestBDD = BDD.root;
+                         }
+
+                     }
+                     System.out.println("The best root element is: " + bestBDD.element + "\n" + "Min number of nodes: " + minNodes + "\n" + "Percent of reduction is: " + percentOfReduction(currentOrder));
+
+                     return bestBDD;
+                 }
+
+                 public static int countMaxNodes(String[] order) {
+                         int numVariables = order.length;
+                         int maxNodes = 1;
+                         int count =1;
+                         for (int i = 0; i < numVariables; i++) {
+                             count += Math.pow(2, i);
+                             maxNodes = maxNodes+count;
+                         }
+                         return maxNodes;
+                     }
+                     public static float percentOfReduction(String[] order)
+                     {
+                         float percent;
+                         percent = (100-((float)BDD.nodesCounter/countMaxNodes(order)*100));
+                         return percent;
+                     }
+
+
+
+
+                     public static void main(String[] args) {
+                         BddCreate bdd = new BddCreate();
+                         bestOrder(BFunction);
+                         BDDNode root = bdd.BDDCreate(BFunction, order);
+             //            if (root != null) {
+             //                System.out.println("BDD root element: " + root.element);
+             //            }
+                         System.out.println(countMaxNodes(order));
+                         System.out.println(notReduced);
+                         char[] inputs1 = {'0','0', '0','0','0','1','1','0','1','1','0','1','0'}; // input for which we want to evaluate the function
+                         String result1 = BDDUse(root,inputs1);
+                         System.out.println("BDD use result for inputs " + Arrays.toString(inputs1) + " is " + result1); // prints "BDD_use result for inputs [0, 1, 0] is 1"
+                         char[] inputs2 = {'0', '0', '1'}; // input for which we want to evaluate the function
+                         String result2 = BddCreate.BDDUse(root, inputs2);
+                         System.out.println("BDD use result for inputs " + Arrays.toString(inputs2) + " is " + result2); // prints "BDD_use result for inputs [1, 0, 0] is 0"
+                         char[] inputs3 = {'0', '1', '0'}; // input for which we want to evaluate the function
+                         String result3 = BddCreate.BDDUse(root, inputs3);
+                         System.out.println("BDD use result for inputs " + Arrays.toString(inputs3) + " is " + result3); // prints "BDD_use result for inputs [1, 0, 0] is 0"
+                         char[] inputs8 = {'0', '1', '1'}; // input for which we want to evaluate the function
+                         String result8 = BddCreate.BDDUse(root, inputs8);
+                         System.out.println("BDD use result for inputs " + Arrays.toString(inputs8) + " is " + result8); // prints "BDD_use result for inputs [1, 0, 0] is 0"
+                         char[] inputs4 = {'1','0', '0'}; // input for which we want to evaluate the function
+                         String result4 = BDDUse(root,inputs4);
+                         System.out.println("BDD use result for inputs " + Arrays.toString(inputs4) + " is " + result4); // prints "BDD_use result for inputs [0, 1, 0] is 1"
+                         char[] inputs5 = {'1', '0', '1'}; // input for which we want to evaluate the function
+                         String result5 = BddCreate.BDDUse(root, inputs5);
+                         System.out.println("BDD use result for inputs " + Arrays.toString(inputs5) + " is " + result5); // prints "BDD_use result for inputs [1, 0, 0] is 0"
+                         char[] inputs6 = {'1', '1', '0'}; // input for which we want to evaluate the function
+                         String result6 = BddCreate.BDDUse(root, inputs6);
+                         System.out.println("BDD use result for inputs " + Arrays.toString(inputs6) + " is " + result6); // prints "BDD_use result for inputs [1, 0, 0] is 0"
+                         char[] inputs7 = {'1','1', '1'}; // input for which we want to evaluate the function
+                         String result7 = BDDUse(root,inputs7);
+                         System.out.println("BDD use result for inputs " + Arrays.toString(inputs7) + " is " + result7); // prints "BDD_use result for inputs [1, 0, 0] is 0"
+
+
+                     }
+                 }
